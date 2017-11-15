@@ -81,8 +81,12 @@ def authorize(auth_token, req_payload):
     s3 = get_s3_client()
     try:
         # Get request payload
-        owner = req_payload.get('metadata', {}).get('owner')
-        dataset_name = req_payload.get('metadata', {}).get('dataset')
+        metadata = req_payload.get('metadata', {})
+        owner = metadata.get('owner')
+        dataset_name = metadata.get('dataset')
+        findability = metadata.get('findability')
+        acl = 'private' if findability == 'private' else 'public-read',
+        
         # Verify client, deny access if not verified
         if owner is None:
             return Response(status=400)
@@ -95,15 +99,15 @@ def authorize(auth_token, req_payload):
             s3path = format_s3_path(file, owner, dataset_name, path)
 
             s3headers = {
-                'acl': 'public-read',
+                'acl': acl,
                 'Content-MD5': file['md5'],
                 'Content-Type': file.get('type', 'text/plain')
             }
 
             conditions = [
-                {"acl": "public-read"},
-                {"Content-Type": s3headers['Content-Type']},
-                {"Content-MD5": s3headers['Content-MD5']}
+                {'acl': acl},
+                {'Content-Type': s3headers['Content-Type']},
+                {'Content-MD5': s3headers['Content-MD5']}
             ]
 
             post = s3.generate_presigned_post(

@@ -1,3 +1,4 @@
+import copy
 import json
 import server
 import unittest
@@ -30,7 +31,7 @@ PAYLOAD = {
 class DataStoreTest(unittest.TestCase):
 
     # Actions
-
+    @mock_s3
     def setUp(self):
 
         # Cleanup
@@ -47,6 +48,9 @@ class DataStoreTest(unittest.TestCase):
         module.config['STORAGE_SECRET_ACCESS_KEY'] = ''
         module.config['ACCESS_KEY_EXPIRES_IN'] = ''
         module.config['STORAGE_PATH_PATTERN'] = '{owner}/{dataset}/{path}'
+        self.s3 = boto3.client('s3')
+        bucket_name = module.config['STORAGE_BUCKET_NAME']
+        self.s3.create_bucket(Bucket=bucket_name)
 
     def tearDown(self):
         module.config = self.original_config
@@ -67,10 +71,6 @@ class DataStoreTest(unittest.TestCase):
 
     @mock_s3
     def test___call___good_request(self):
-        mockS3 = boto3.client('s3')
-        bucket_name = module.config['STORAGE_BUCKET_NAME']
-        mockS3.create_bucket(Bucket=bucket_name)
-
         ret = module.authorize(AUTH_TOKEN, PAYLOAD)
         self.assertIs(type(ret),str)
         output = json.loads(ret)
@@ -93,6 +93,17 @@ class DataStoreTest(unittest.TestCase):
         output = json.loads(ret)
         query = output['filedata']['data/file1.xls']['upload_query']
         self.assertEqual(query['key'], '044e18f0bf3b19ac0428a75c85436194.xls')
+
+    @mock_s3
+    def test___call___good_request_with_private_acl(self):
+        payload = copy.deepcopy(PAYLOAD)
+        payload['metadata']['findability'] = 'private'
+        ret = module.authorize(AUTH_TOKEN, payload)
+        self.assertIs(type(ret),str)
+        output = json.loads(ret)
+        query = output['filedata']['data/file1.xls']['upload_query']
+        self.assertEqual(query['key'], 'owner/name/data/file1.xls')
+        self.assertEqual(query['acl'], ['private'])
 
     def test___info___not_authorized(self):
         info = module.info
