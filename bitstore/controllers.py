@@ -1,9 +1,9 @@
 import base64
 import codecs
 import json
-import os
-
 import logging
+import os
+import requests
 
 
 try:
@@ -86,7 +86,7 @@ def authorize(auth_token, req_payload):
         dataset_name = metadata.get('dataset')
         findability = metadata.get('findability')
         acl = 'private' if findability == 'private' else 'public-read',
-        
+
         # Verify client, deny access if not verified
         if owner is None:
             return Response(status=400)
@@ -163,4 +163,38 @@ def info(auth_token):
 
     except Exception as exception:
         logging.exception('Bad request (info)')
+        return Response(status=400)
+
+
+def presign(auth_token, url, ownerid=None):
+    """Generates S3 presigned URLs if necessary
+    :param auth_token: authentication token from auth
+    :param ownerid: ownerid for dataset
+    :param url: url to check for sigend URL
+    """
+    s3 = get_s3_client()
+    try:
+        needs_signed_url = requests.get(url)
+        if needs_signed_url.status_code != 403:
+            return json.dumps({'url': url})
+        # Verify client, deny access if not verified
+        if ownerid is None:
+            return Response(status=400)
+        if not services.verify(auth_token, ownerid):
+            return Response(status=401)
+        parsed_url = requests.utils.urlparse(url)
+        bucket = parsed_url.netloc
+        key = parsed_url.path
+        if key.startswith('/'):
+            key = key[1:]
+
+        signed_url = s3.generate_presigned_url(
+            ClientMethod='get_object',
+            Params={
+                'Bucket': bucket,
+                'Key': key
+            })
+        return json.dumps({'url': signed_url})
+    except Exception as exception:
+        logging.exception('Bad request')
         return Response(status=400)
