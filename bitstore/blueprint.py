@@ -28,13 +28,9 @@ def make_blueprint():
 
     def presign():
         auth_token = request.headers.get('Auth-Token') or request.values.get('jwt')
-        try:
-            req_payload = json.loads(request.data.decode())
-            url = req_payload.get('url') or request.values.get('url')
-            ownerid = req_payload.get('ownerid') or request.values.get('ownerid')
-            return controllers.presign(auth_token, url, ownerid)
-        except (json.JSONDecodeError, ValueError) as e:
-            return Response(str(e), status=400)
+        url = request.values.get('url')
+        ownerid = request.values.get('ownerid')
+        controllers.presign(auth_token, url, ownerid)
 
     # Register routes
     blueprint.add_url_rule(
@@ -42,7 +38,7 @@ def make_blueprint():
     blueprint.add_url_rule(
             'authorize', 'authorize', authorize, methods=['POST'])
     blueprint.add_url_rule(
-            'presign', 'presign', presign, methods=['POST'])
+            'presign', 'presign', presign, methods=['GET'])
     blueprint.add_url_rule(
             '/', 'authorize', authorize, methods=['POST'])
 

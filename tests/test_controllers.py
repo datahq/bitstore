@@ -134,7 +134,7 @@ class DataStoreTest(unittest.TestCase):
     def test__checkurl__returns_url_as_is_if_not_forbidden(self, m):
         presign = module.presign
         url = 'http://test.com'
-        m.get(url, status_code=200)
+        m.head(url, status_code=200)
         out = json.loads(presign(AUTH_TOKEN, url, 'owner'))
         self.assertEqual(out['url'], 'http://test.com')
 
@@ -142,25 +142,25 @@ class DataStoreTest(unittest.TestCase):
     def test__checkurl__not_authorized(self, m):
         presign = module.presign
         url = 'http://{}/{}/{}'.format(module.config['STORAGE_BUCKET_NAME'], 'owner', 'name')
-        m.get(url, status_code=403)
+        m.head(url, status_code=403)
         self.services.verify = Mock(return_value=False)
         out = presign(AUTH_TOKEN, url, 'owner')
-        self.assertEqual(out.status, '401 UNAUTHORIZED')
+        self.assertEqual(out.status, '403 FORBIDDEN')
 
     @requests_mock.mock()
     def test__checkurl__no_user(self, m):
         presign = module.presign
         url = 'http://{}/{}/{}'.format(module.config['STORAGE_BUCKET_NAME'], 'owner', 'name')
-        m.get(url, status_code=403)
+        m.head(url, status_code=403)
         self.services.verify = Mock(return_value=False)
         out = presign(AUTH_TOKEN, url)
-        self.assertEqual(out.status, '400 BAD REQUEST')
+        self.assertEqual(out.status, '401 UNAUTHORIZED')
 
     @requests_mock.mock()
     def test__checkurl__signes_url(self, m):
         presign = module.presign
         url = 'http://{}/{}/{}'.format(module.config['STORAGE_BUCKET_NAME'], 'owner', 'name')
-        m.get(url, status_code=403)
+        m.head(url, status_code=403)
         self.services.verify = Mock(return_value=True)
         out = json.loads(presign(AUTH_TOKEN, url, 'owner'))
         self.assertTrue(out['url'].startswith('https://s3.amazonaws.com/buckbuck/owner/name'))

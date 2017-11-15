@@ -155,7 +155,7 @@ JSON content with the following structure:
 
 `/presign`
 
-**Methos:** `POST`
+**Methos:** `GET`
 
 **Query Parameters:**
 
@@ -166,13 +166,6 @@ JSON content with the following structure:
 **Headers:**
 
  - `Auth-Token` - permission token (can be used instead of the `jwt` query parameter)
-
-**Body**
-
-{
-  "url": "https://rawstore.datahub.io/ownername/dataset/mydata.csv",
-  "owner": "ownername"
-}
 
 **Returns:**
 
