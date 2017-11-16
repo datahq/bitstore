@@ -164,3 +164,4 @@ class DataStoreTest(unittest.TestCase):
         self.services.verify = Mock(return_value=True)
         out = json.loads(presign(AUTH_TOKEN, url, 'owner'))
         self.assertTrue(out['url'].startswith('https://s3.amazonaws.com/buckbuck/owner/name'))
+        self.assertTrue('Expires=86400' in out['url'])

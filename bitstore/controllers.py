@@ -192,7 +192,8 @@ def presign(auth_token, url, ownerid=None):
             Params={
                 'Bucket': bucket,
                 'Key': key
-            })
+            },
+            ExpiresIn=3600*24)
         return json.dumps({'url': signed_url})
     except Exception as exception:
         logging.exception('Bad request')
