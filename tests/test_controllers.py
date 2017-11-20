@@ -138,6 +138,7 @@ class DataStoreTest(unittest.TestCase):
         out = json.loads(presign(AUTH_TOKEN, url, 'owner'))
         self.assertEqual(out['url'], 'http://test.com')
 
+
     @requests_mock.mock()
     def test__checkurl__not_authorized(self, m):
         presign = module.presign
@@ -155,6 +156,15 @@ class DataStoreTest(unittest.TestCase):
         self.services.verify = Mock(return_value=False)
         out = presign(AUTH_TOKEN, url)
         self.assertEqual(out.status, '401 UNAUTHORIZED')
+
+    @requests_mock.mock()
+    def test__checkurl__returns_forbidden_if_url_does_not_owned_by_owner(self, m):
+        presign = module.presign
+        url = 'http://{}/{}/{}'.format('pkgstore', 'owner', 'name')
+        m.head(url, status_code=403)
+        self.services.verify = Mock(return_value=True)
+        out = presign(AUTH_TOKEN, url, 'notowner')
+        self.assertEqual(out.status, '403 FORBIDDEN')
 
     @requests_mock.mock()
     def test__checkurl__signes_url(self, m):
