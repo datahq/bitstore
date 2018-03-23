@@ -1,12 +1,16 @@
 import json
+import os
 
 from flask import Blueprint, request, Response
-from . import controllers
 
+from . import controllers, services
 
 def make_blueprint():
     """Create blueprint.
     """
+
+    # Create FileManager tables if not exists
+    services.FileRegistry.init_db()
 
     # Create instance
     blueprint = Blueprint('bitstore', 'bitstore')

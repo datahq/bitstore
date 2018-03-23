@@ -87,14 +87,35 @@ def authorize(auth_token, req_payload):
         dataset_name = metadata.get('dataset')
         findability = metadata.get('findability')
         acl = 'public-read'
+        is_private = False
         if findability == 'private':
             acl = 'private'
+            is_private = True
 
         # Verify client, deny access if not verified
         if owner is None:
             return Response(status=400)
         if not services.verify(auth_token, owner):
             return Response(status=401)
+
+        permissions = services.permissions(auth_token)
+        limits = permissions.get('permissions')
+        limit = limits.get(
+            'max_private_storage_mb' if is_private else 'max_public_storage_mb', 0
+        )
+        current_storage = services.FileRegistry.get_total_size_for_owner(
+            owner, 'private' if is_private else None
+        )
+
+        total_bytes = 0
+        for file in req_payload['filedata'].values():
+            total_bytes += file['length']
+
+        bytes = 1000000
+        if current_storage * bytes  + total_bytes >  limit * bytes:
+            return Response(status=403,
+                response='Max %sstorage for user exceeded plan limit (%dMB)' % (
+                    'private ' if is_private else '', limit))
 
         # Make response payload
         res_payload = {'filedata': {}}

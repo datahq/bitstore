@@ -5,6 +5,12 @@ import logging
 
 _public_key = None
 
+# FileManager
+from filemanager.models import FileManager
+
+db_connection_string = os.environ.get('DATABASE_URL')
+FileRegistry = FileManager(db_connection_string)
+
 
 def public_key():
     global _public_key
@@ -33,6 +39,21 @@ def verify(auth_token, owner):
         # has_permission = has_permission and service == 'world'
         # has_permission = has_permission and owner == token.get('userid')
         return has_permission
+    except jwt.InvalidTokenError:
+        return False
+
+
+def permissions(auth_token):
+    """Exract permissions from Auth Token.
+    :param auth_token: Authenticated token
+    """
+    if not auth_token:
+        return False
+    try:
+        token = jwt.decode(auth_token.encode('ascii'),
+                           public_key(),
+                           algorithm='RS256')
+        return token
     except jwt.InvalidTokenError:
         return False
 

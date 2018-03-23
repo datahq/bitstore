@@ -29,6 +29,14 @@ PAYLOAD = {
     },
 }
 
+token = {
+    'userid': 'owner',
+    'permissions': {
+        'max_dataset_num': 10,
+        'max_private_storage_mb': 100,
+        'max_public_storage_mb': 100
+    }
+}
 
 class DataStoreTest(unittest.TestCase):
 
@@ -63,6 +71,28 @@ class DataStoreTest(unittest.TestCase):
         out = authorize(AUTH_TOKEN, PAYLOAD)
         self.assertEqual(out.status, '401 UNAUTHORIZED')
 
+    def test___call___not_enough_public_space(self):
+        authorize = module.authorize
+        limited_token = copy.deepcopy(token)
+        limited_token['permissions']['max_public_storage_mb'] = 1
+        self.services.permissions = Mock(return_value=limited_token)
+        self.services.FileRegistry.get_total_size_for_owner = Mock(return_value=0.99991)
+        out = authorize(AUTH_TOKEN, PAYLOAD)
+        self.assertEqual(out.status, '403 FORBIDDEN')
+        self.assertEqual(out.response, [b'Max storage for user exceeded plan limit (1MB)'])
+
+    def test___call___not_enough_private_space(self):
+        authorize = module.authorize
+        limited_token = copy.deepcopy(token)
+        limited_token['permissions']['max_private_storage_mb'] = 1
+        self.services.permissions = Mock(return_value=limited_token)
+        self.services.FileRegistry.get_total_size_for_owner = Mock(return_value=0.99991)
+        private_payload = copy.deepcopy(PAYLOAD)
+        private_payload['metadata']['findability'] = 'private'
+        out = authorize(AUTH_TOKEN, private_payload)
+        self.assertEqual(out.status, '403 FORBIDDEN')
+        self.assertEqual(out.response, [b'Max private storage for user exceeded plan limit (1MB)'])
+
     def test___call___bad_request(self):
         authorize = module.authorize
         self.assertEqual(authorize(AUTH_TOKEN, {
@@ -72,6 +102,8 @@ class DataStoreTest(unittest.TestCase):
     @mock_s3
     def test___call___good_request(self):
         self.s3.create_bucket(Bucket=self.bucket)
+        self.services.permissions = Mock(return_value=token)
+        self.services.FileRegistry.get_total_size_for_owner = Mock(return_value=10)
         ret = module.authorize(AUTH_TOKEN, PAYLOAD)
         self.assertIs(type(ret),str)
         output = json.loads(ret)
@@ -98,6 +130,8 @@ class DataStoreTest(unittest.TestCase):
 
     @mock_s3
     def test___call___good_request_and_key_exists(self):
+        self.services.permissions = Mock(return_value=token)
+        self.services.FileRegistry.get_total_size_for_owner = Mock(return_value=10)
         self.s3.create_bucket(Bucket=self.bucket)
         self.s3.put_object(
             ACL='public-read',
@@ -129,6 +163,8 @@ class DataStoreTest(unittest.TestCase):
 
     @mock_s3
     def test___call___good_request_with_private_acl(self):
+        self.services.permissions = Mock(return_value=token)
+        self.services.FileRegistry.get_total_size_for_owner = Mock(return_value=10)
         self.s3.create_bucket(Bucket=self.bucket)
         payload = copy.deepcopy(PAYLOAD)
         payload['metadata']['findability'] = 'private'
