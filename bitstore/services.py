@@ -7,6 +7,7 @@ _public_key = None
 
 # FileManager
 from filemanager.models import FileManager
+from auth.lib import Verifyer
 
 db_connection_string = os.environ.get('DATABASE_URL')
 FileRegistry = FileManager(db_connection_string)
@@ -20,59 +21,12 @@ def public_key():
     return _public_key
 
 
-def verify(auth_token, owner):
+def verify(auth_token, owner=None):
     """Verify Auth Token.
     :param auth_token: Authentication token to verify
     :param owner: dataset owner
     """
-    if not auth_token:
-        return False
+    verifyer = Verifyer(public_key=public_key())
     if auth_token == 'testing-token' and owner == '__tests':
         return True
-    try:
-        token = jwt.decode(auth_token.encode('ascii'),
-                           public_key(),
-                           algorithm='RS256')
-        has_permission = owner == token.get('userid')
-        # TODO: Check service in the future
-        # service = token.get('service')
-        # has_permission = has_permission and service == 'world'
-        # has_permission = has_permission and owner == token.get('userid')
-        return has_permission
-    except jwt.InvalidTokenError:
-        return False
-
-
-def permissions(auth_token):
-    """Exract permissions from Auth Token.
-    :param auth_token: Authenticated token
-    """
-    if not auth_token:
-        return False
-    try:
-        token = jwt.decode(auth_token.encode('ascii'),
-                           public_key(),
-                           algorithm='RS256')
-        return token
-    except jwt.InvalidTokenError:
-        return False
-
-
-def get_user_id(auth_token):
-    """Returns the user id from an Auth Token.
-    :param auth_token: Authentication token to verify
-    :returns user id
-    """
-    if not auth_token:
-        return None
-    try:
-        token = jwt.decode(auth_token.encode('ascii'),
-                           public_key(),
-                           algorithm='RS256')
-        # TODO: Check service in the future
-        # service = token.get('service')
-        # if service == 'world':
-        return token.get('userid')
-    except jwt.InvalidTokenError:
-        pass
-    return None
+    return verifyer.extract_permissions(auth_token)

@@ -88,14 +88,14 @@ def authorize(auth_token, req_payload):
         findability = metadata.get('findability')
         is_private = findability == 'private'
         acl = 'private' if is_private else 'public-read'
+        permissions = services.verify(auth_token)
 
         # Verify client, deny access if not verified
         if owner is None:
             return Response(status=400)
-        if not services.verify(auth_token, owner):
+        if not permissions or permissions.get('userid') != owner:
             return Response(status=401)
 
-        permissions = services.permissions(auth_token)
         limits = permissions.get('permissions')
         limit = limits.get(
             'max_private_storage_mb' if is_private else 'max_public_storage_mb', 0
@@ -166,9 +166,10 @@ def info(auth_token):
 
     try:
         # Get request payload
-        userid = services.get_user_id(auth_token)
-        if userid is None:
+        permissions = services.verify(auth_token)
+        if not permissions:
             return Response(status=401)
+        userid = permissions.get('ownerid')
 
         # Make response payload
         urls = []
@@ -205,7 +206,8 @@ def presign(auth_token, url, ownerid=None):
         # Verify client, deny access if not verified
         if ownerid is None:
             return Response(status=401)
-        if not services.verify(auth_token, ownerid):
+        permissions = services.verify(auth_token)
+        if not permissions or permissions.get('ownerid') != ownerid:
             return Response(status=403)
         parsed_url = urllib.parse.urlparse(url)
         bucket = parsed_url.netloc

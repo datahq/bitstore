@@ -74,7 +74,7 @@ class DataStoreTest(unittest.TestCase):
     def test___call___not_enough_public_space(self):
         authorize = module.authorize
         limited_token = copy.deepcopy(token)
-        self.services.permissions = Mock(return_value=limited_token)
+        self.services.verify = Mock(return_value=limited_token)
         self.services.FileRegistry.get_total_size_for_owner = Mock(return_value=901)
         out = authorize(AUTH_TOKEN, PAYLOAD)
         self.assertEqual(out.status, '403 FORBIDDEN')
@@ -83,7 +83,7 @@ class DataStoreTest(unittest.TestCase):
     def test___call___not_enough_private_space(self):
         authorize = module.authorize
         limited_token = copy.deepcopy(token)
-        self.services.permissions = Mock(return_value=limited_token)
+        self.services.verify = Mock(return_value=limited_token)
         self.services.FileRegistry.get_total_size_for_owner = Mock(return_value=901)
         private_payload = copy.deepcopy(PAYLOAD)
         private_payload['metadata']['findability'] = 'private'
@@ -100,7 +100,7 @@ class DataStoreTest(unittest.TestCase):
     @mock_s3
     def test___call___good_request(self):
         self.s3.create_bucket(Bucket=self.bucket)
-        self.services.permissions = Mock(return_value=token)
+        self.services.verify = Mock(return_value=token)
         self.services.FileRegistry.get_total_size_for_owner = Mock(return_value=10)
         ret = module.authorize(AUTH_TOKEN, PAYLOAD)
         self.assertIs(type(ret),str)
@@ -128,7 +128,7 @@ class DataStoreTest(unittest.TestCase):
 
     @mock_s3
     def test___call___good_request_and_key_exists(self):
-        self.services.permissions = Mock(return_value=token)
+        self.services.verify = Mock(return_value=token)
         self.services.FileRegistry.get_total_size_for_owner = Mock(return_value=10)
         self.s3.create_bucket(Bucket=self.bucket)
         self.s3.put_object(
@@ -161,7 +161,7 @@ class DataStoreTest(unittest.TestCase):
 
     @mock_s3
     def test___call___good_request_with_private_acl(self):
-        self.services.permissions = Mock(return_value=token)
+        self.services.verify = Mock(return_value=token)
         self.services.FileRegistry.get_total_size_for_owner = Mock(return_value=10)
         self.s3.create_bucket(Bucket=self.bucket)
         payload = copy.deepcopy(PAYLOAD)
@@ -175,12 +175,12 @@ class DataStoreTest(unittest.TestCase):
 
     def test___info___not_authorized(self):
         info = module.info
-        self.services.get_user_id = Mock(return_value=None)
+        self.services.verify = Mock(return_value=False)
         self.assertEqual(info(AUTH_TOKEN).status, '401 UNAUTHORIZED')
 
     def test___info___good_request(self):
         info = module.info
-        self.services.get_user_id = Mock(return_value='12345678')
+        self.services.verify = Mock(return_value={'ownerid': '12345678'})
         ret = json.loads(info(AUTH_TOKEN))
         self.assertListEqual(ret['prefixes'],
                              ['http://buckbuck:80/12345678',
@@ -228,7 +228,7 @@ class DataStoreTest(unittest.TestCase):
         presign = module.presign
         url = 'http://{}/{}/{}'.format('pkgstore', 'owner', 'name')
         m.head(url, status_code=403)
-        self.services.verify = Mock(return_value=True)
+        self.services.verify = Mock(return_value={'ownerid': 'owner'})
         out = presign(AUTH_TOKEN, url, 'notowner')
         self.assertEqual(out.status, '403 FORBIDDEN')
 
@@ -237,7 +237,7 @@ class DataStoreTest(unittest.TestCase):
         presign = module.presign
         url = 'http://{}/{}/{}'.format(module.config['STORAGE_BUCKET_NAME'], 'owner', 'name')
         m.head(url, status_code=403)
-        self.services.verify = Mock(return_value=True)
+        self.services.verify = Mock(return_value={'ownerid': 'owner'})
         out = json.loads(presign(AUTH_TOKEN, url, 'owner'))
         self.assertTrue(out['url'].startswith('https://s3.amazonaws.com/buckbuck/owner/name'))
         self.assertTrue('Expires=86400' in out['url'])
@@ -248,7 +248,7 @@ class DataStoreTest(unittest.TestCase):
         url = 'http://{}/{}/{}/{}'.format(
             's3.amazonaws.com', module.config['STORAGE_BUCKET_NAME'], 'owner', 'name')
         m.head(url, status_code=403)
-        self.services.verify = Mock(return_value=True)
+        self.services.verify = Mock(return_value={'ownerid': 'owner'})
         out = json.loads(presign(AUTH_TOKEN, url, 'owner'))
         self.assertTrue(out['url'].startswith('https://s3.amazonaws.com/buckbuck/owner/name'))
         self.assertTrue('Expires=86400' in out['url'])
