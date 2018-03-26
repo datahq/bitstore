@@ -33,8 +33,8 @@ token = {
     'userid': 'owner',
     'permissions': {
         'max_dataset_num': 10,
-        'max_private_storage_mb': 100,
-        'max_public_storage_mb': 100
+        'max_private_storage_mb': 1000,
+        'max_public_storage_mb': 1000
     }
 }
 
@@ -74,24 +74,22 @@ class DataStoreTest(unittest.TestCase):
     def test___call___not_enough_public_space(self):
         authorize = module.authorize
         limited_token = copy.deepcopy(token)
-        limited_token['permissions']['max_public_storage_mb'] = 1
         self.services.permissions = Mock(return_value=limited_token)
-        self.services.FileRegistry.get_total_size_for_owner = Mock(return_value=0.99991)
+        self.services.FileRegistry.get_total_size_for_owner = Mock(return_value=901)
         out = authorize(AUTH_TOKEN, PAYLOAD)
         self.assertEqual(out.status, '403 FORBIDDEN')
-        self.assertEqual(out.response, [b'Max storage for user exceeded plan limit (1MB)'])
+        self.assertEqual(out.response, [b'Max storage for user exceeded plan limit (1000MB)'])
 
     def test___call___not_enough_private_space(self):
         authorize = module.authorize
         limited_token = copy.deepcopy(token)
-        limited_token['permissions']['max_private_storage_mb'] = 1
         self.services.permissions = Mock(return_value=limited_token)
-        self.services.FileRegistry.get_total_size_for_owner = Mock(return_value=0.99991)
+        self.services.FileRegistry.get_total_size_for_owner = Mock(return_value=901)
         private_payload = copy.deepcopy(PAYLOAD)
         private_payload['metadata']['findability'] = 'private'
         out = authorize(AUTH_TOKEN, private_payload)
         self.assertEqual(out.status, '403 FORBIDDEN')
-        self.assertEqual(out.response, [b'Max private storage for user exceeded plan limit (1MB)'])
+        self.assertEqual(out.response, [b'Max private storage for user exceeded plan limit (1000MB)'])
 
     def test___call___bad_request(self):
         authorize = module.authorize
