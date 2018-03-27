@@ -109,7 +109,7 @@ def authorize(auth_token, req_payload, verifyer: auth.lib.Verifyer, registry: Fi
         for file in req_payload['filedata'].values():
             total_bytes += file['length']
 
-        if current_storage + total_bytes > limit:
+        if current_storage + total_bytes > limit * 1000000:
             return Response(status=403,
                 response='Max %sstorage for user exceeded plan limit (%dMB)' % (
                     'private ' if is_private else '', limit))

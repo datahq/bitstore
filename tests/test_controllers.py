@@ -36,7 +36,7 @@ PAYLOAD = {
 private_key = open('tests/private.pem').read()
 public_key = open('tests/public.pem').read()
 
-def generate_token(owner='owner', max_datasets=10, max_storage=1000, max_private_storage=1000):
+def generate_token(owner='owner', max_datasets=10, max_storage=1, max_private_storage=1):
     ret = {
         'userid': owner,
         'permissions': {
@@ -50,7 +50,7 @@ def generate_token(owner='owner', max_datasets=10, max_storage=1000, max_private
     return token
 
 
-def full_registry(pb_size=901, pr_size=901):
+def full_registry(pb_size=999901, pr_size=999901):
     r = FileManager('sqlite://')
     r.init_db()
     r.add_file(
@@ -102,7 +102,7 @@ class DataStoreTest(unittest.TestCase):
                         PAYLOAD, auth.lib.Verifyer(public_key=public_key),
                         full_registry())
         self.assertEqual(out.status, '403 FORBIDDEN')
-        self.assertEqual(out.response, [b'Max storage for user exceeded plan limit (1000MB)'])
+        self.assertEqual(out.response, [b'Max storage for user exceeded plan limit (1MB)'])
 
     def test___call___not_enough_private_space(self):
         authorize = module.authorize
@@ -112,7 +112,7 @@ class DataStoreTest(unittest.TestCase):
                         auth.lib.Verifyer(public_key=public_key),
                         full_registry())
         self.assertEqual(out.status, '403 FORBIDDEN')
-        self.assertEqual(out.response, [b'Max private storage for user exceeded plan limit (1000MB)'])
+        self.assertEqual(out.response, [b'Max private storage for user exceeded plan limit (1MB)'])
 
     def test___call___bad_request(self):
         authorize = module.authorize
