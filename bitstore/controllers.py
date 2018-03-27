@@ -18,6 +18,7 @@ from boto3.exceptions import Boto3Error
 from botocore.client import Config
 from flask import request, Response
 
+import auth
 from . import services
 
 config = {}
@@ -76,7 +77,7 @@ def format_s3_path(file, owner, dataset_name, path):
     return s3path
 
 
-def authorize(auth_token, req_payload):
+def authorize(auth_token, req_payload, verifyer: auth.lib.Verifyer):
     """Authorize a client for the file uploading.
     """
     s3 = get_s3_client()
@@ -88,7 +89,7 @@ def authorize(auth_token, req_payload):
         findability = metadata.get('findability')
         is_private = findability == 'private'
         acl = 'private' if is_private else 'public-read'
-        permissions = services.verify(auth_token)
+        permissions = verifyer.extract_permissions(auth_token)
 
         # Verify client, deny access if not verified
         if owner is None:
@@ -158,7 +159,7 @@ def authorize(auth_token, req_payload):
         return Response(status=400)
 
 
-def info(auth_token):
+def info(auth_token, verifyer: auth.lib.Verifyer):
     """Authorize a client for the file uploading.
     :param auth_token: authentication token to test
     """
@@ -166,11 +167,11 @@ def info(auth_token):
 
     try:
         # Get request payload
-        permissions = services.verify(auth_token)
+        permissions = verifyer.extract_permissions(auth_token)
         if not permissions:
             return Response(status=401)
-        userid = permissions.get('ownerid')
-
+        userid = permissions.get('userid')
+    
         # Make response payload
         urls = []
         for scheme, port in [('http', '80'), ('https', '443')]:
@@ -192,7 +193,7 @@ def info(auth_token):
         return Response(status=400)
 
 
-def presign(auth_token, url, ownerid=None):
+def presign(auth_token, url, verifyer: auth.lib.Verifyer, ownerid=None):
     """Generates S3 presigned URLs if necessary
     :param auth_token: authentication token from auth
     :param ownerid: ownerid for dataset
@@ -206,8 +207,8 @@ def presign(auth_token, url, ownerid=None):
         # Verify client, deny access if not verified
         if ownerid is None:
             return Response(status=401)
-        permissions = services.verify(auth_token)
-        if not permissions or permissions.get('ownerid') != ownerid:
+        permissions = verifyer.extract_permissions(auth_token)
+        if not permissions or permissions.get('userid') != ownerid:
             return Response(status=403)
         parsed_url = urllib.parse.urlparse(url)
         bucket = parsed_url.netloc
