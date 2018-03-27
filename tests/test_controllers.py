@@ -1,4 +1,5 @@
 import copy
+import datetime
 import json
 import jwt
 import unittest
@@ -12,8 +13,11 @@ import boto3
 import requests_mock
 
 import auth
+from filemanager.models import FileManager
 from importlib import import_module
 module = import_module('bitstore.controllers')
+
+now = datetime.datetime.now()
 
 PAYLOAD = {
     'metadata': {
@@ -46,6 +50,20 @@ def generate_token(owner='owner', max_datasets=10, max_storage=1000, max_private
     return token
 
 
+def full_registry(pb_size=901, pr_size=901):
+    r = FileManager('sqlite://')
+    r.init_db()
+    r.add_file(
+        'testing.bucket', 'owner/file1.xls', 'unlisted',
+        'owner', 'owner', 'id', 'me/id/1', pb_size, now
+    )
+    r.add_file(
+        'testing.bucket', 'owner/file1.xls', 'private',
+        'owner', 'owner', 'id', 'me/id/1', pr_size, now
+    )
+    return r
+
+
 class DataStoreTest(unittest.TestCase):
 
     # Actions
@@ -58,8 +76,6 @@ class DataStoreTest(unittest.TestCase):
         # Request patch
         self.request = patch.object(module, 'request').start()
         # Various patches
-        self.services = patch.object(module, 'services').start()
-
         self.original_config = dict(module.config)
         module.config['STORAGE_BUCKET_NAME'] = self.bucket = 'buckbuck'
         module.config['STORAGE_ACCESS_KEY_ID'] = ''
@@ -75,36 +91,41 @@ class DataStoreTest(unittest.TestCase):
 
     def test___call___not_authorized(self):
         authorize = module.authorize
-        out = authorize(generate_token('not_owner'), PAYLOAD, auth.lib.Verifyer(public_key=public_key))
+        out = authorize(generate_token('not_owner'),
+                        PAYLOAD, auth.lib.Verifyer(public_key=public_key),
+                        full_registry())
         self.assertEqual(out.status, '401 UNAUTHORIZED')
 
     def test___call___not_enough_public_space(self):
         authorize = module.authorize
-        self.services.FileRegistry.get_total_size_for_owner = Mock(return_value=901)
-        out = authorize(generate_token(), PAYLOAD, auth.lib.Verifyer(public_key=public_key))
+        out = authorize(generate_token(),
+                        PAYLOAD, auth.lib.Verifyer(public_key=public_key),
+                        full_registry())
         self.assertEqual(out.status, '403 FORBIDDEN')
         self.assertEqual(out.response, [b'Max storage for user exceeded plan limit (1000MB)'])
 
     def test___call___not_enough_private_space(self):
         authorize = module.authorize
-        self.services.FileRegistry.get_total_size_for_owner = Mock(return_value=901)
         private_payload = copy.deepcopy(PAYLOAD)
         private_payload['metadata']['findability'] = 'private'
-        out = authorize(generate_token(), private_payload, auth.lib.Verifyer(public_key=public_key))
+        out = authorize(generate_token(),private_payload,
+                        auth.lib.Verifyer(public_key=public_key),
+                        full_registry())
         self.assertEqual(out.status, '403 FORBIDDEN')
         self.assertEqual(out.response, [b'Max private storage for user exceeded plan limit (1000MB)'])
 
     def test___call___bad_request(self):
         authorize = module.authorize
         self.assertEqual(
-            authorize(generate_token(), {'bad': 'data'}, auth.lib.Verifyer(public_key=public_key)
+            authorize(generate_token(), {'bad': 'data'}, auth.lib.Verifyer(public_key=public_key), full_registry()
         ).status, '400 BAD REQUEST')
 
     @mock_s3
     def test___call___good_request(self):
         self.s3.create_bucket(Bucket=self.bucket)
-        self.services.FileRegistry.get_total_size_for_owner = Mock(return_value=10)
-        ret = module.authorize(generate_token(), PAYLOAD, auth.lib.Verifyer(public_key=public_key))
+        ret = module.authorize(generate_token(), PAYLOAD,
+                                auth.lib.Verifyer(public_key=public_key),
+                                full_registry(10, 10))
         self.assertIs(type(ret),str)
         output = json.loads(ret)
         query = output['filedata']['data/file1.xls']['upload_query']
@@ -123,20 +144,23 @@ class DataStoreTest(unittest.TestCase):
 
         # now do it with md5 path ...
         module.config['STORAGE_PATH_PATTERN'] = '{md5_hex}{extension}'
-        ret = module.authorize(generate_token(), PAYLOAD, auth.lib.Verifyer(public_key=public_key))
+        ret = module.authorize(generate_token(), PAYLOAD,
+                                auth.lib.Verifyer(public_key=public_key),
+                                full_registry(10, 10))
         output = json.loads(ret)
         query = output['filedata']['data/file1.xls']['upload_query']
         self.assertEqual(query['key'], '044e18f0bf3b19ac0428a75c85436194.xls')
 
     @mock_s3
     def test___call___good_request_and_key_exists(self):
-        self.services.FileRegistry.get_total_size_for_owner = Mock(return_value=10)
         self.s3.create_bucket(Bucket=self.bucket)
         self.s3.put_object(
             ACL='public-read',
             Bucket=self.bucket,
             Key='owner/name/data/file1.xls')
-        ret = module.authorize(generate_token(), PAYLOAD, auth.lib.Verifyer(public_key=public_key))
+        ret = module.authorize(generate_token(), PAYLOAD,
+                                auth.lib.Verifyer(public_key=public_key),
+                                full_registry(10, 10))
         self.assertIs(type(ret),str)
         output = json.loads(ret)
         query = output['filedata']['data/file1.xls']['upload_query']
@@ -155,18 +179,21 @@ class DataStoreTest(unittest.TestCase):
 
         # now do it with md5 path ...
         module.config['STORAGE_PATH_PATTERN'] = '{md5_hex}{extension}'
-        ret = module.authorize(generate_token(), PAYLOAD, auth.lib.Verifyer(public_key=public_key))
+        ret = module.authorize(generate_token(), PAYLOAD,
+                                auth.lib.Verifyer(public_key=public_key),
+                                full_registry(10, 10))
         output = json.loads(ret)
         query = output['filedata']['data/file1.xls']['upload_query']
         self.assertEqual(query['key'], '044e18f0bf3b19ac0428a75c85436194.xls')
 
     @mock_s3
     def test___call___good_request_with_private_acl(self):
-        self.services.FileRegistry.get_total_size_for_owner = Mock(return_value=10)
         self.s3.create_bucket(Bucket=self.bucket)
         payload = copy.deepcopy(PAYLOAD)
         payload['metadata']['findability'] = 'private'
-        ret = module.authorize(generate_token(), payload, auth.lib.Verifyer(public_key=public_key))
+        ret = module.authorize(generate_token(), payload,
+                                auth.lib.Verifyer(public_key=public_key),
+                                full_registry(10, 10))
         self.assertIs(type(ret),str)
         output = json.loads(ret)
         query = output['filedata']['data/file1.xls']['upload_query']

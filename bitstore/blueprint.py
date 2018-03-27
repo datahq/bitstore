@@ -4,8 +4,10 @@ import os
 from flask import Blueprint, request, Response
 
 from auth.lib import Verifyer
-from . import controllers, services
+from filemanager.models import FileManager
+from . import controllers
 
+db_connection_string = os.environ.get('DATABASE_URL')
 auth_server = os.environ.get('AUTH_SERVER')
 
 
@@ -16,7 +18,8 @@ def make_blueprint():
     verifyer = Verifyer(auth_endpoint=f'http://{auth_server}/auth/public-key')
 
     # Create FileManager tables if not exists
-    services.FileRegistry.init_db()
+    file_manager = FileManager(db_connection_string)
+    file_manager.init_db()
 
     # Create instance
     blueprint = Blueprint('bitstore', 'bitstore')
@@ -26,7 +29,7 @@ def make_blueprint():
         auth_token = request.headers.get('auth-token') or request.values.get('jwt')
         try:
             req_payload = json.loads(request.data.decode())
-            return controllers.authorize(auth_token, req_payload, verifyer)
+            return controllers.authorize(auth_token, req_payload, verifyer, file_manager)
         except (json.JSONDecodeError, ValueError) as e:
             return Response(str(e), status=400)
 

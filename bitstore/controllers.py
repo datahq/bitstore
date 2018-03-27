@@ -19,7 +19,7 @@ from botocore.client import Config
 from flask import request, Response
 
 import auth
-from . import services
+from filemanager.models import FileManager
 
 config = {}
 for key, value in os.environ.items():
@@ -77,7 +77,7 @@ def format_s3_path(file, owner, dataset_name, path):
     return s3path
 
 
-def authorize(auth_token, req_payload, verifyer: auth.lib.Verifyer):
+def authorize(auth_token, req_payload, verifyer: auth.lib.Verifyer, registry: FileManager):
     """Authorize a client for the file uploading.
     """
     s3 = get_s3_client()
@@ -101,7 +101,7 @@ def authorize(auth_token, req_payload, verifyer: auth.lib.Verifyer):
         limit = limits.get(
             'max_private_storage_mb' if is_private else 'max_public_storage_mb', 0
         )
-        current_storage = services.FileRegistry.get_total_size_for_owner(
+        current_storage = registry.get_total_size_for_owner(
             owner, 'private' if is_private else None
         )
 
@@ -171,7 +171,7 @@ def info(auth_token, verifyer: auth.lib.Verifyer):
         if not permissions:
             return Response(status=401)
         userid = permissions.get('userid')
-    
+
         # Make response payload
         urls = []
         for scheme, port in [('http', '80'), ('https', '443')]:
